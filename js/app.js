@@ -14,8 +14,6 @@ function appState() {
     map: null,
     circle: null,
 
-    snapshot: null,
-
     // Step 1: Paketauswahl
     selectedPackageId: null,  // 1 | 2 | 3 | 'custom'
     customImpressions: 100000,
@@ -26,6 +24,10 @@ function appState() {
     quadraticImage: null,
     previewType: null,
 
+    // Magnifier / Progress
+    activeSection: 0,
+    sectionLabels: ['Zielgruppe', 'Paketauswahl', 'Banner', 'Übersicht'],
+
     // Beratungstermin
     consultOpen: false,
     consultSuccess: false,
@@ -34,34 +36,6 @@ function appState() {
     selectedConsultDate: null,
     selectedConsultSlot: null,
 
-    wizard: {
-      step: 0,
-      stepLabels: ["Zielgruppe", "Paketauswahl", "Banner", "Übersicht"],
-      nextStep() {
-        if (this.step < this.stepLabels.length - 1) this.step++;
-      },
-      prevStep() {
-        if (this.step > 0) this.step--;
-      },
-    },
-
-    lockSelection() {
-      this.snapshot = {
-        city: this.selectedCity.name,
-        radiusKm: this.radiusKm,
-        users: this.usersInRadius,
-        schoolTypes: this.selectedSchoolTypes.length > 0
-          ? [...this.selectedSchoolTypes]
-          : ["Alle Schularten"],
-        grades: this.selectedGrades.length > 0
-          ? this.selectedGrades.map((g) => `${g}. Klasse`)
-          : ["Alle Klassen"],
-        studyPrograms: this.selectedStudyPrograms.length > 0
-          ? [...this.selectedStudyPrograms]
-          : ["Alle Studiengänge"],
-      };
-      this.wizard.nextStep();
-    },
 
     get selectedCity() {
       return this.cities.find((c) => c.id === this.selectedCityId);
@@ -173,23 +147,6 @@ function appState() {
       return STUDY_PROGRAMS.filter((p) => p.toLowerCase().includes(q));
     },
 
-    // Dropdown-Label-Helfer
-    schoolTypeLabel() {
-      if (this.selectedSchoolTypes.length === 0) return "Alle Schularten";
-      if (this.selectedSchoolTypes.length === 1) return this.selectedSchoolTypes[0];
-      return `${this.selectedSchoolTypes.length} ausgewählt`;
-    },
-    gradeLevelLabel() {
-      if (this.selectedGrades.length === 0) return "Alle Klassen";
-      if (this.selectedGrades.length === 1) return `${this.selectedGrades[0]}. Klasse`;
-      return `${this.selectedGrades.length} Klassen`;
-    },
-    studyLabel() {
-      if (this.selectedStudyPrograms.length === 0) return "Alle Studiengänge";
-      if (this.selectedStudyPrograms.length === 1) return this.selectedStudyPrograms[0];
-      return `${this.selectedStudyPrograms.length} ausgewählt`;
-    },
-
     // Dropdown-Toggle (immer nur eines offen)
     toggleDropdown(name) {
       this.openDropdown = this.openDropdown === name ? null : name;
@@ -217,22 +174,20 @@ function appState() {
       const mapEl = document.getElementById("map");
       if (mapEl._leaflet_id) return;
 
-      // Mausrad-Scroll auf der rechten Spalte → Step-Navigation
-      const rightPanel = document.querySelector('.panel-right');
-      let wheelCooldown = false;
-      rightPanel.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        if (wheelCooldown) return;
-        wheelCooldown = true;
-        setTimeout(() => { wheelCooldown = false; }, 480);
-
-        if (e.deltaY > 0) {
-          if (this.wizard.step === 0) this.lockSelection();
-          else this.wizard.nextStep();
-        } else {
-          this.wizard.prevStep();
-        }
-      }, { passive: false });
+      // Scroll-Observer für Magnifier + Dots
+      const sections = document.querySelectorAll('.wizard-section');
+      const updateActive = () => {
+        const vcenter = window.innerHeight / 2;
+        let closest = 0, closestDist = Infinity;
+        sections.forEach((s, i) => {
+          const rect = s.getBoundingClientRect();
+          const dist = Math.abs((rect.top + rect.bottom) / 2 - vcenter);
+          if (dist < closestDist) { closestDist = dist; closest = i; }
+        });
+        this.activeSection = closest;
+      };
+      window.addEventListener('scroll', updateActive, { passive: true });
+      updateActive();
 
       this.map = L.map("map", { zoomControl: false }).setView(
         [this.selectedCity.lat, this.selectedCity.lng],
@@ -254,6 +209,11 @@ function appState() {
         weight: 2,
       }).addTo(this.map);
 
+    },
+
+    scrollToSection(i) {
+      const sections = document.querySelectorAll('.wizard-section');
+      sections[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
 
     onCityChange() {

@@ -15,10 +15,14 @@
   box-sizing: border-box;
 }
 
-html, body {
+html {
   margin: 0;
   padding: 0;
-  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
   font-family: var(--font-body);
   color: var(--text-main);
 }
@@ -31,41 +35,261 @@ h1, h2, h3, h4,
   font-family: var(--font-heading);
 }
 
-#map {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
+/* ─── Navigation ─────────────────────────────────────────── */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--panel-border);
+  height: 56px;
 }
 
-.panel {
-  position: fixed;
-  top: 16px;
-  bottom: 16px;
-  width: 300px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
-  padding: 20px;
-  overflow-y: auto;
-  z-index: 10;
-  backdrop-filter: blur(4px);
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
 }
 
-.panel-left {
-  left: 16px;
+.nav-logo {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-main);
+  white-space: nowrap;
 }
 
-.panel-right {
-  right: 16px;
-  width: 340px;
+.nav-logo-sub {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.nav-links {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+
+.nav-link {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.nav-link:hover {
+  color: var(--text-main);
+}
+
+.nav-cta {
+  padding: 7px 18px;
+  border-radius: 20px;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  background: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-body);
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-cta:hover {
+  background: var(--accent);
+  color: white;
+}
+
+/* ─── Hero ───────────────────────────────────────────────── */
+
+.hero {
+  text-align: left;
+  padding: 48px 80px 36px;
+}
+
+.hero-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+
+.hero-title {
+  font-family: var(--font-heading);
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text-main);
+  margin: 0 0 10px;
+  max-width: 520px;
+}
+
+.hero-sub {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 520px;
+}
+
+/* ─── Campaign Layout ────────────────────────────────────── */
+
+.campaign-layout {
+  display: grid;
+  grid-template-columns: 1fr 390px;
+  align-items: start;
+  border-top: 1px solid var(--panel-border);
+}
+
+.map-col {
+  position: sticky;
+  top: 56px;
+  padding: 32px 80px 32px 80px;
   display: flex;
   flex-direction: column;
+  gap: 20px;
+  border-right: 1px solid var(--panel-border);
 }
 
-.panel h2 {
-  margin: 0 0 16px;
-  font-size: 1.1rem;
+#map {
+  height: calc(100vh - 120px);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.wizard-col {
+  padding: 0 56px 0 24px;
+}
+
+/* ─── Wizard Progress Dots (vertikal, rechts außen) ─────── */
+
+.wizard-progress {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.w-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.w-dot.done {
+  background: var(--accent);
+  opacity: 0.45;
+}
+
+.w-dot.active {
+  background: var(--accent);
+  transform: scale(1.5);
+  opacity: 1;
+}
+
+.w-dot-label {
+  font-family: var(--font-heading);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  margin-top: 6px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* ─── Wizard-Sektionen ───────────────────────────────────── */
+
+.wizard-section {
+  padding: 56px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.wizard-section--last {
+  border-bottom: none;
+  padding-bottom: 80px;
+}
+
+/* ─── Reichweiten-Box ───────────────────────────────────── */
+
+.reach-box {
+  margin-top: 28px;
+  background: var(--accent-light);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reach-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.reach-value {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.reach-unit {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* ─── Sektions-Labels ───────────────────────────────────── */
+
+.section-num {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-heading);
+  margin: 0 0 10px;
+}
+
+.section-title {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 8px;
+}
+
+.section-sub {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin: 0 0 28px;
+  line-height: 1.5;
 }
 
 .field {
@@ -324,160 +548,6 @@ h1, h2, h3, h4,
   font-weight: 700;
 }
 
-/* Wizard */
-
-.wizard-header {
-  flex-shrink: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--panel-border);
-  margin-bottom: 0;
-}
-
-.wizard-header h2 {
-  margin: 0 0 10px;
-  font-size: 1.05rem;
-}
-
-.wizard-dots {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.wizard-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--panel-border);
-  background: white;
-  padding: 0;
-  cursor: default;
-  transition: background 0.2s, border-color 0.2s, transform 0.2s;
-}
-
-.wizard-dot.done {
-  background: var(--accent);
-  border-color: var(--accent);
-  cursor: pointer;
-}
-
-.wizard-dot.done:hover {
-  transform: scale(1.3);
-}
-
-.wizard-dot.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  transform: scale(1.35);
-  box-shadow: 0 0 0 3px var(--accent-light);
-}
-
-.wizard-step-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin: 0;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-/* Slide-Track */
-
-.wizard-body {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  margin: 0 -20px; /* negative margin so slides bleed to panel edge */
-}
-
-.wizard-track {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
-}
-
-.wizard-slide {
-  min-height: 100%;
-  width: 100%;
-  flex-shrink: 0;
-  overflow-y: auto;
-  padding: 16px 20px;
-  box-sizing: border-box;
-
-  /* Magnifier: nicht-aktive Slides leicht verkleinert */
-  transform: scale(0.88);
-  opacity: 0;
-  transition:
-    transform 0.42s cubic-bezier(0.34, 1.4, 0.64, 1),
-    opacity   0.32s ease;
-  transform-origin: center center;
-  pointer-events: none;
-}
-
-.wizard-slide.active {
-  transform: scale(1);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.wizard-nav {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--panel-border);
-}
-
-.wizard-nav button {
-  flex: 1;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid var(--panel-border);
-  background: white;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.wizard-nav button:not(:disabled):hover {
-  background: var(--accent-light);
-  border-color: var(--accent);
-}
-
-.wizard-nav button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.wizard-nav .btn-nav-primary {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.wizard-nav .btn-nav-primary:not(:disabled):hover {
-  background: #7b5de0;
-  border-color: #7b5de0;
-  color: white;
-}
-
-.city-label {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  box-shadow: var(--shadow);
-}
-
-.city-label::before {
-  display: none;
-}
 
 /* ─── Paketauswahl (Slide 1) ─────────────────────────────── */
 
