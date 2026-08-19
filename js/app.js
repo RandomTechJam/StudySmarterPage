@@ -158,7 +158,7 @@ function appState() {
       this.citySearching = true;
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=de`
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=de&countrycodes=de`
         );
         const data = await res.json();
         if (data[0]) {
