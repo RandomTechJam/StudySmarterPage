@@ -195,16 +195,17 @@ function appState() {
       );
 
       // CARTO Voyager: farbiger Stil (keine Gleise, dezente Straßen)
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-        subdomains: "abcd",
+      L.tileLayer("https://api.maptiler.com/maps/dataviz/{z}/{x}/{y}.png?key=3l3atsqoU80Mr2nZi4Oy", {
+        attribution: '© <a href="https://www.maptiler.com/">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        tileSize: 512,
+        zoomOffset: -1,
         maxZoom: 19,
       }).addTo(this.map);
 
       this.circle = L.circle([this.selectedCity.lat, this.selectedCity.lng], {
         radius: this.radiusKm * 1000,
-        color: "#9272f2",
-        fillColor: "#9272f2",
+        color: "#2970FF",
+        fillColor: "#2970FF",
         fillOpacity: 0.15,
         weight: 2,
       }).addTo(this.map);
