@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudySmarter Dummy — Standort-Explorer</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&family=Source+Sans+3:wght@400;600&display=swap">
+  <link rel="stylesheet" href="./css/style.css">
+
+  <!-- Leaflet (Karte, kein API-Key nötig da OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Alpine.js (deklarativ, kein Build-Step) -->
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body x-data="appState()" x-init="init()">
+
+  <!-- Vollbild-Hintergrundkarte -->
+  <div id="map"></div>
+
+  <!-- Linke Spalte: Filter -->
+  <aside class="panel panel-left" @click.outside="openDropdown = null">
+    <h2>Filter</h2>
+
+    <!-- Stadt -->
+    <div class="field">
+      <label for="city-select">Stadt</label>
+      <select id="city-select" x-model.number="selectedCityId" @change="onCityChange()">
+        <template x-for="city in cities" :key="city.id">
+          <option :value="city.id" x-text="city.name"></option>
+        </template>
+      </select>
+    </div>
+
+    <!-- Radius -->
+    <div class="field">
+      <label for="radius-slider">
+        Radius: <span x-text="radiusKm"></span> km
+      </label>
+      <input
+        id="radius-slider"
+        type="range"
+        min="1"
+        max="50"
+        step="1"
+        x-model.number="radiusKm"
+        @input="onRadiusChange()"
+      >
+    </div>
+
+    <!-- Schularten -->
+    <div class="field">
+      <label>Schularten</label>
+      <div class="filter-dropdown">
+        <div class="filter-select" :class="{ active: openDropdown === 'school' }"
+          @click="toggleDropdown('school')">
+          <div class="filter-chips-row" x-show="selectedSchoolTypes.length > 0" @click.stop>
+            <template x-for="type in selectedSchoolTypes" :key="type">
+              <span class="chip">
+                <span class="chip-label" x-text="type"></span>
+                <span class="chip-remove" @click.stop="toggleSchoolType(type)">×</span>
+              </span>
+            </template>
+          </div>
+          <span class="filter-placeholder" x-show="selectedSchoolTypes.length === 0">Alle Schularten</span>
+          <span class="filter-arrow" :class="{ flipped: openDropdown === 'school' }">▾</span>
+        </div>
+        <div class="filter-menu" x-show="openDropdown === 'school'">
+          <template x-for="type in ['Fachabitur','Gesamtschule','Gymnasium','Hauptschule','Realschule']" :key="type">
+            <label class="filter-option">
+              <input type="checkbox"
+                :checked="selectedSchoolTypes.includes(type)"
+                @change="toggleSchoolType(type)">
+              <span x-text="type"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Klassenstufen -->
+    <div class="field">
+      <label>Klassenstufen</label>
+      <div class="filter-dropdown">
+        <div class="filter-select" :class="{ active: openDropdown === 'grade' }"
+          @click="toggleDropdown('grade')">
+          <div class="filter-chips-row" x-show="selectedGrades.length > 0" @click.stop>
+            <template x-for="grade in selectedGrades" :key="grade">
+              <span class="chip">
+                <span class="chip-label" x-text="grade + '. Kl.'"></span>
+                <span class="chip-remove" @click.stop="toggleGrade(grade)">×</span>
+              </span>
+            </template>
+          </div>
+          <span class="filter-placeholder" x-show="selectedGrades.length === 0">Alle Klassen</span>
+          <span class="filter-arrow" :class="{ flipped: openDropdown === 'grade' }">▾</span>
+        </div>
+        <div class="filter-menu" x-show="openDropdown === 'grade'">
+          <template x-for="grade in [7,8,9,10,11,12,13]" :key="grade">
+            <label class="filter-option">
+              <input type="checkbox"
+                :checked="selectedGrades.includes(grade)"
+                @change="toggleGrade(grade)">
+              <span x-text="grade + '. Klasse'"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Studienwunsch -->
+    <div class="field">
+      <label>Studienwunsch</label>
+      <div class="filter-dropdown">
+        <div class="filter-select" :class="{ active: openDropdown === 'study' }"
+          @click="toggleDropdown('study')">
+          <div class="filter-chips-row" x-show="selectedStudyPrograms.length > 0" @click.stop>
+            <template x-for="program in selectedStudyPrograms" :key="program">
+              <span class="chip">
+                <span class="chip-label" x-text="program"></span>
+                <span class="chip-remove" @click.stop="toggleStudy(program)">×</span>
+              </span>
+            </template>
+          </div>
+          <span class="filter-placeholder" x-show="selectedStudyPrograms.length === 0">Alle Studiengänge</span>
+          <span class="filter-arrow" :class="{ flipped: openDropdown === 'study' }">▾</span>
+        </div>
+        <div class="filter-menu filter-menu--study" x-show="openDropdown === 'study'">
+          <div class="filter-search-wrap">
+            <input class="filter-search" type="text" placeholder="Suchen …"
+              x-model="studySearch" @click.stop>
+          </div>
+          <template x-for="program in filteredStudyPrograms" :key="program">
+            <label class="filter-option">
+              <input type="checkbox"
+                :checked="selectedStudyPrograms.includes(program)"
+                @change="toggleStudy(program)">
+              <span x-text="program"></span>
+            </label>
+          </template>
+          <p class="filter-empty" x-show="filteredStudyPrograms.length === 0">Keine Treffer</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- User-Zahl -->
+    <div class="stat-box">
+      <div class="stat-label">Fiktive User im Radius</div>
+      <div class="stat-value" x-text="usersInRadius.toLocaleString('de-DE')"></div>
+    </div>
+  </aside>
+
+  <!-- Rechte Spalte: Wizard -->
+  <aside class="panel panel-right">
+
+    <!-- Kopfzeile mit Titel + Schritt-Dots -->
+    <div class="wizard-header">
+      <h2>Kampagne einrichten</h2>
+      <div class="wizard-dots">
+        <template x-for="(label, index) in wizard.stepLabels" :key="index">
+          <button
+            class="wizard-dot"
+            type="button"
+            :class="{ active: wizard.step === index, done: wizard.step > index }"
+            :title="label"
+            @click="wizard.step > index && (wizard.step = index)"
+          ></button>
+        </template>
+      </div>
+      <p class="wizard-step-label" x-text="wizard.stepLabels[wizard.step]"></p>
+    </div>
+
+    <!-- Slide-Track (Magnifier-Effekt) -->
+    <div class="wizard-body">
+      <div class="wizard-track"
+        :style="'transform: translateY(-' + wizard.step * 100 + '%)'">
+
+        <!-- Slide 0: Zielgruppe -->
+        <div class="wizard-slide" :class="{ active: wizard.step === 0 }">
+          <p class="wizard-intro">Übernimm deine aktuellen Filtereinstellungen als Zielgruppe für die Kampagne.</p>
+          <div class="snapshot-preview">
+            <div class="snapshot-row">
+              <span class="snapshot-key">Stadt</span>
+              <span class="snapshot-val" x-text="selectedCity.name"></span>
+            </div>
+            <div class="snapshot-row">
+              <span class="snapshot-key">Radius</span>
+              <span class="snapshot-val"><span x-text="radiusKm"></span> km</span>
+            </div>
+            <div class="snapshot-row">
+              <span class="snapshot-key">Schularten</span>
+              <span class="snapshot-val" x-text="schoolTypeLabel()"></span>
+            </div>
+            <div class="snapshot-row">
+              <span class="snapshot-key">Klassen</span>
+              <span class="snapshot-val" x-text="gradeLevelLabel()"></span>
+            </div>
+            <div class="snapshot-row">
+              <span class="snapshot-key">Studienwunsch</span>
+              <span class="snapshot-val" x-text="studyLabel()"></span>
+            </div>
+            <div class="snapshot-row snapshot-row--highlight">
+              <span class="snapshot-key">Erreichte User</span>
+              <span class="snapshot-val" x-text="usersInRadius.toLocaleString('de-DE')"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 1: Paketauswahl -->
+        <div class="wizard-slide" :class="{ active: wizard.step === 1 }">
+          <p class="wizard-intro">Wähle ein Werbepaket für deine Kampagne.</p>
+
+          <template x-for="pkg in AD_PACKAGES" :key="pkg.id">
+            <div class="pkg-card" :class="{ selected: selectedPackageId === pkg.id }"
+              @click="selectedPackageId = pkg.id">
+              <div class="pkg-header">
+                <span class="pkg-name" x-text="pkg.label"></span>
+                <span class="pkg-price">€<span x-text="pkg.price.toLocaleString('de-DE')"></span></span>
+              </div>
+              <div class="pkg-impressions" x-text="pkg.impressions.toLocaleString('de-DE') + ' Impressionen'"></div>
+            </div>
+          </template>
+
+          <!-- Individuelle Option -->
+          <div class="pkg-card pkg-card--custom" :class="{ selected: selectedPackageId === 'custom' }"
+            @click="selectedPackageId = 'custom'">
+            <div class="pkg-header">
+              <span class="pkg-name">Individuell</span>
+              <span class="pkg-price">€<span x-text="customPackagePrice.toLocaleString('de-DE')"></span></span>
+            </div>
+            <div class="pkg-impressions" x-text="customImpressions.toLocaleString('de-DE') + ' Impressionen'"></div>
+            <div class="pkg-custom-control" @click.stop>
+              <input type="range" min="10000" max="1000000" step="10000"
+                x-model.number="customImpressions"
+                :disabled="selectedPackageId !== 'custom'"
+                style="width:100%; margin-top:8px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 2: Banner -->
+        <div class="wizard-slide" :class="{ active: wizard.step === 2 }">
+          <p class="wizard-intro">Wähle deine Bannerformate und lade deine Motive hoch.</p>
+
+          <div class="split-label">
+            <span>Skyscraper <strong x-text="skyscraperPercent + '%'"></strong></span>
+            <span>Quadratisch <strong x-text="squarePercent + '%'"></strong></span>
+          </div>
+          <input type="range" min="0" max="100" step="10"
+            x-model.number="skyscraperPercent"
+            class="split-slider"
+            :style="'background: linear-gradient(to right, var(--accent) ' + skyscraperPercent + '%, #c4b5fd ' + skyscraperPercent + '%)'">
+
+          <!-- Skyscraper -->
+          <div class="banner-row">
+            <div class="upload-zone-wrap">
+              <div class="upload-zone upload-zone--sky" :class="{ 'has-image': skyscraperImage }"
+                @click="$refs.uploadSky.click()">
+                <img x-show="skyscraperImage" :src="skyscraperImage" class="upload-preview" alt="Skyscraper">
+                <div x-show="!skyscraperImage" class="upload-placeholder">
+                  <div class="upload-icon">↑</div>
+                  <div class="upload-fmt">Skyscraper</div>
+                  <div class="upload-dim">160 × 600 px</div>
+                </div>
+              </div>
+            </div>
+            <input type="file" accept="image/*" x-ref="uploadSky" class="input-hidden"
+              @change="handleImageUpload('sky', $event)">
+            <button type="button" class="btn-preview"
+              :disabled="!skyscraperImage"
+              @click.stop="previewType = 'sky'">Vorschau</button>
+          </div>
+
+          <!-- Quadratisch -->
+          <div class="banner-row">
+            <div class="upload-zone-wrap">
+              <div class="upload-zone upload-zone--quad" :class="{ 'has-image': quadraticImage }"
+                @click="$refs.uploadQuad.click()">
+                <img x-show="quadraticImage" :src="quadraticImage" class="upload-preview" alt="Quadratisch">
+                <div x-show="!quadraticImage" class="upload-placeholder">
+                  <div class="upload-icon">↑</div>
+                  <div class="upload-fmt">Quadratisch</div>
+                  <div class="upload-dim">250 × 250 px</div>
+                </div>
+              </div>
+            </div>
+            <input type="file" accept="image/*" x-ref="uploadQuad" class="input-hidden"
+              @change="handleImageUpload('quad', $event)">
+            <button type="button" class="btn-preview"
+              :disabled="!quadraticImage"
+              @click.stop="previewType = 'quad'">Vorschau</button>
+          </div>
+        </div>
+
+        <!-- Slide 3: Übersicht -->
+        <div class="wizard-slide" :class="{ active: wizard.step === 3 }">
+          <p class="wizard-intro">Überprüfe deine Kampagne und starte sie.</p>
+
+          <!-- Zielgruppe -->
+          <div class="snapshot-preview" x-show="snapshot">
+            <div class="snapshot-row">
+              <span class="snapshot-key">Zielgruppe</span>
+              <span class="snapshot-val" x-text="snapshot?.city + ' · ' + snapshot?.radiusKm + ' km'"></span>
+            </div>
+            <div class="snapshot-row snapshot-row--highlight">
+              <span class="snapshot-key">Erreichte User</span>
+              <span class="snapshot-val" x-text="snapshot?.users.toLocaleString('de-DE')"></span>
+            </div>
+          </div>
+
+          <!-- Paket -->
+          <div class="snapshot-preview" x-show="activePackage" style="margin-top:10px;">
+            <div class="snapshot-row">
+              <span class="snapshot-key">Paket</span>
+              <span class="snapshot-val" x-text="activePackage?.label"></span>
+            </div>
+            <div class="snapshot-row">
+              <span class="snapshot-key">Impressionen</span>
+              <span class="snapshot-val" x-text="activePackage?.impressions.toLocaleString('de-DE')"></span>
+            </div>
+            <div class="snapshot-row snapshot-row--highlight">
+              <span class="snapshot-key">Preis</span>
+              <span class="snapshot-val" x-text="'€ ' + activePackage?.price.toLocaleString('de-DE')"></span>
+            </div>
+          </div>
+
+          <!-- Banner-Aufteilung + Mini-Mockups -->
+          <div class="overview-mocks">
+            <!-- Skyscraper -->
+            <div class="overview-mock-col">
+              <div class="overview-mini-mock">
+                <div class="mini-bars">
+                  <div class="mbar mbar--xl"></div>
+                  <div class="mbar mbar--sm"></div>
+                  <div class="mbar mbar--md"></div>
+                  <div class="mbar mbar--sm"></div>
+                  <div class="mbar"></div>
+                  <div class="mbar mbar--md"></div>
+                </div>
+                <div class="mini-ad-sky">
+                  <img x-show="skyscraperImage" :src="skyscraperImage"
+                    style="width:100%;height:100%;object-fit:cover;" alt="">
+                </div>
+              </div>
+              <div class="overview-mock-label">Skyscraper · <strong x-text="skyscraperPercent + '%'"></strong></div>
+              <div class="overview-mock-impr"
+                x-text="activePackage ? Math.round(activePackage.impressions * skyscraperPercent / 100).toLocaleString('de-DE') + ' Imp.' : ''"></div>
+            </div>
+
+            <!-- Quadratisch -->
+            <div class="overview-mock-col">
+              <div class="overview-mini-mock overview-mini-mock--col">
+                <div class="mbar mbar--xl"></div>
+                <div class="mbar mbar--sm"></div>
+                <div class="mini-ad-quad">
+                  <img x-show="quadraticImage" :src="quadraticImage"
+                    style="width:100%;height:100%;object-fit:cover;" alt="">
+                </div>
+                <div class="mbar mbar--md"></div>
+                <div class="mbar mbar--sm"></div>
+              </div>
+              <div class="overview-mock-label">Quadratisch · <strong x-text="squarePercent + '%'"></strong></div>
+              <div class="overview-mock-impr"
+                x-text="activePackage ? Math.round(activePackage.impressions * squarePercent / 100).toLocaleString('de-DE') + ' Imp.' : ''"></div>
+            </div>
+          </div>
+
+          <div class="overview-actions">
+            <button type="button" class="btn-book" disabled>Buchen</button>
+            <button type="button" class="btn-consult"
+              @click="consultOpen = true; consultSuccess = false;">Beratung vereinbaren</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="wizard-nav">
+      <button type="button" @click="wizard.prevStep()" :disabled="wizard.step === 0">← Zurück</button>
+      <button type="button" @click="lockSelection()" x-show="wizard.step === 0" class="btn-nav-primary">
+        Übernehmen →
+      </button>
+      <button type="button" @click="wizard.nextStep()"
+        x-show="wizard.step > 0 && wizard.step < wizard.stepLabels.length - 1"
+        :disabled="wizard.step === 1 && selectedPackageId === null">Weiter →</button>
+    </div>
+  </aside>
+
+  <!-- Beratungstermin Modal -->
+  <div class="consult-modal" :class="{ open: consultOpen }" @click="consultOpen = false">
+    <div class="consult-box" @click.stop>
+
+      <!-- Erfolg -->
+      <div x-show="consultSuccess" class="consult-success">
+        <div class="consult-check">✓</div>
+        <h3>Anfrage gesendet!</h3>
+        <p>Unser Team meldet sich innerhalb von 24 Stunden bei Ihnen, um den Termin zu bestätigen.</p>
+        <div class="consult-success-detail">
+          <div>📅 <span x-text="selectedConsultDate?.toLocaleDateString('de-DE', { weekday:'long', day:'numeric', month:'long' })"></span></div>
+          <div>🕐 <span x-text="selectedConsultSlot + ' Uhr'"></span></div>
+        </div>
+        <button class="btn-confirm-consult" @click="consultOpen = false">Schließen</button>
+      </div>
+
+      <!-- Buchungsformular -->
+      <div x-show="!consultSuccess">
+        <div class="consult-header">
+          <span class="consult-title">Beratungstermin anfragen</span>
+          <button class="preview-close" @click="consultOpen = false">×</button>
+        </div>
+
+        <!-- Kalender -->
+        <div class="cal-header">
+          <button class="cal-nav" @click="calPrevMonth()" :disabled="calMonth === new Date().getMonth() && calYear === new Date().getFullYear()">‹</button>
+          <span class="cal-month-name" x-text="calMonthName"></span>
+          <button class="cal-nav" @click="calNextMonth()">›</button>
+        </div>
+        <div class="cal-weekdays">
+          <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+        </div>
+        <div class="cal-grid">
+          <template x-for="(day, i) in calDays" :key="i">
+            <button class="cal-day"
+              :class="{ disabled: !day || day.disabled, selected: day?.selected }"
+              :disabled="!day || day.disabled"
+              @click="selectConsultDate(day)"
+              x-text="day?.day || ''">
+            </button>
+          </template>
+        </div>
+
+        <!-- Zeitslots -->
+        <div x-show="selectedConsultDate" class="slot-section">
+          <p class="slot-label">Uhrzeit wählen</p>
+          <div class="slot-grid">
+            <template x-for="slot in consultSlots" :key="slot">
+              <button class="slot-btn"
+                :class="{ selected: selectedConsultSlot === slot }"
+                @click="selectedConsultSlot = slot"
+                x-text="slot + ' Uhr'">
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <button class="btn-confirm-consult"
+          :disabled="!selectedConsultDate || !selectedConsultSlot"
+          @click="confirmConsult()">
+          Termin anfragen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner-Vorschau Modal -->
+  <div class="preview-modal" :class="{ open: previewType !== null }" @click="previewType = null">
+    <div class="preview-modal-box" @click.stop>
+      <div class="preview-sheet-header">
+        <span class="preview-sheet-title"
+          x-text="previewType === 'sky' ? 'Skyscraper · 160 × 600 px' : 'Quadratisch · 250 × 250 px'"></span>
+        <button type="button" class="preview-close" @click="previewType = null">×</button>
+      </div>
+
+      <!-- Skyscraper: Banner rechts neben Mock-Content -->
+      <div class="preview-webpage" x-show="previewType === 'sky'">
+        <div class="mock-content">
+          <div class="mock-bar mock-bar--xl"></div>
+          <div class="mock-bar"></div>
+          <div class="mock-bar mock-bar--sm"></div>
+          <div class="mock-img-block"></div>
+          <div class="mock-bar mock-bar--md"></div>
+          <div class="mock-bar"></div>
+          <div class="mock-bar mock-bar--sm"></div>
+          <div class="mock-bar mock-bar--md"></div>
+          <div class="mock-bar"></div>
+          <div class="mock-bar mock-bar--sm"></div>
+          <div class="mock-img-block"></div>
+          <div class="mock-bar"></div>
+          <div class="mock-bar mock-bar--md"></div>
+        </div>
+        <div class="mock-ad mock-ad--sky">
+          <img :src="skyscraperImage" style="width:100%;height:100%;object-fit:cover;" alt="">
+        </div>
+      </div>
+
+      <!-- Quadratisch: Banner eingebettet in Mock-Content -->
+      <div class="preview-webpage preview-webpage--quad" x-show="previewType === 'quad'">
+        <div class="mock-bar mock-bar--xl"></div>
+        <div class="mock-bar"></div>
+        <div class="mock-bar mock-bar--sm"></div>
+        <div class="mock-ad mock-ad--quad">
+          <img :src="quadraticImage" style="width:100%;height:100%;object-fit:cover;" alt="">
+        </div>
+        <div class="mock-bar mock-bar--md"></div>
+        <div class="mock-bar"></div>
+        <div class="mock-bar mock-bar--sm"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/cities.js"></script>
+  <script src="./js/data.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
