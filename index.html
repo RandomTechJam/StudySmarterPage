@@ -16,6 +16,9 @@
 </head>
 <body x-data="appState()" x-init="init()" @click="openDropdown = null">
 
+  <!-- Fixed Logo -->
+  <img class="site-logo" src="./assets/logo.png" alt="StudySmarter">
+
   <!-- Navigation -->
   <nav class="nav">
     <div class="nav-inner">
@@ -32,8 +35,8 @@
   <!-- Hero -->
   <section class="hero">
     <p class="hero-eyebrow">Werbeplattform</p>
-    <h1 class="hero-title">Erreiche deine Zielgruppe.<br>Direkt beim Lernen.</h1>
-    <p class="hero-sub">Konfiguriere deine Kampagne in wenigen Schritten und erreiche Schüler und Studenten auf StudySmarter — präzise, effizient, messbar.</p>
+    <h1 class="hero-title">Erreichen Sie Ihre Zielgruppe.<br>Präzise und datenbasiert.</h1>
+    <p class="hero-sub">Konfigurieren Sie Ihre Kampagne in wenigen Schritten und erreichen Sie Schüler und Studenten auf StudySmarter — präzise, effizient, messbar.</p>
   </section>
 
   <!-- Campaign Builder -->
@@ -41,7 +44,43 @@
 
     <!-- Sticky linke Spalte: Karte -->
     <aside class="map-col">
-      <div id="map"></div>
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="map-reach-bubble">
+          <div class="bubble-states">
+            <!-- Suchzustand: noch keine Stadt gewählt -->
+            <div class="bubble-search" x-show="!customCity">
+              <img class="reach-logo" src="./assets/logo.png" alt="StudySmarter">
+              <div class="bubble-input-outer">
+                <div class="bubble-input-wrap">
+                  <input class="bubble-city-input" x-model="cityInput"
+                    placeholder="Stadt eingeben …"
+                    @input.debounce.300ms="bubbleFocused = true; fetchSuggestions()"
+                    @keydown.enter.prevent="citySuggestions.length ? selectSuggestion(citySuggestions[0]) : searchCity()"
+                    @keydown.escape="citySuggestions = []; bubbleFocused = false"
+                    @focus="bubbleFocused = true"
+                    @blur="setTimeout(() => { bubbleFocused = false; }, 150)"
+                    autocomplete="off">
+                </div>
+                <div class="bubble-suggestions" x-show="bubbleFocused && citySuggestions.length > 0">
+                  <template x-for="s in citySuggestions" :key="s.lat + '_' + s.lng">
+                    <button class="city-suggestion-item" @mousedown.prevent="selectSuggestion(s)" x-text="s.display"></button>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <!-- Ergebniszustand: Stadt wurde gesucht -->
+            <div class="bubble-result" x-show="customCity">
+              <img class="reach-logo" src="./assets/logo.png" alt="StudySmarter">
+              <div class="reach-info">
+                <span class="reach-label">Unsere Reichweite</span>
+                <span class="reach-value" x-text="usersInRadius.toLocaleString('de-DE')"></span>
+                <span class="reach-unit">fiktive User</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </aside>
 
     <!-- Rechte Spalte: Wizard-Sektionen -->
@@ -51,15 +90,28 @@
       <section class="wizard-section">
         <p class="section-num">01</p>
         <h2 class="section-title">Zielgruppe</h2>
-        <p class="section-sub">Definiere, wen du mit deiner Kampagne erreichen möchtest.</p>
+        <p class="section-sub">Definieren Sie, wen Sie mit Ihrer Kampagne erreichen möchten.</p>
 
         <div class="field">
-          <label for="city-select">Stadt</label>
-          <select id="city-select" x-model.number="selectedCityId" @change="onCityChange()">
-            <template x-for="city in cities" :key="city.id">
-              <option :value="city.id" x-text="city.name"></option>
-            </template>
-          </select>
+          <label>Stadt</label>
+          <div class="city-search-row">
+            <input type="text" class="city-input"
+              x-model="cityInput"
+              placeholder="z. B. Heidelberg, Rostock …"
+              @input.debounce.300ms="fetchSuggestions()"
+              @keydown.enter.prevent="citySuggestions.length ? selectSuggestion(citySuggestions[0]) : searchCity()"
+              @keydown.escape="citySuggestions = []"
+              autocomplete="off">
+            <button class="city-search-btn" @click="searchCity()" :disabled="citySearching">
+              <span x-show="!citySearching">Suchen</span>
+              <span x-show="citySearching">…</span>
+            </button>
+            <div class="city-suggestions" x-show="!bubbleFocused && citySuggestions.length > 0" @click.outside="citySuggestions = []">
+              <template x-for="s in citySuggestions" :key="s.lat + '_' + s.lng">
+                <button class="city-suggestion-item" @mousedown.prevent="selectSuggestion(s)" x-text="s.display"></button>
+              </template>
+            </div>
+          </div>
         </div>
 
         <div class="field">
@@ -154,18 +206,13 @@
           </div>
         </div>
 
-        <div class="reach-box">
-          <span class="reach-label">Geschätzte Reichweite</span>
-          <span class="reach-value" x-text="usersInRadius.toLocaleString('de-DE')"></span>
-          <span class="reach-unit">fiktive User im gewählten Gebiet</span>
-        </div>
       </section>
 
       <!-- 02 Paketauswahl -->
       <section class="wizard-section">
         <p class="section-num">02</p>
         <h2 class="section-title">Paketauswahl</h2>
-        <p class="section-sub">Wähle ein Werbepaket für deine Kampagne.</p>
+        <p class="section-sub">Wählen Sie ein Werbepaket für Ihre Kampagne.</p>
 
         <template x-for="pkg in AD_PACKAGES" :key="pkg.id">
           <div class="pkg-card" :class="{ selected: selectedPackageId === pkg.id }"
@@ -198,7 +245,7 @@
       <section class="wizard-section">
         <p class="section-num">03</p>
         <h2 class="section-title">Banner</h2>
-        <p class="section-sub">Wähle deine Bannerformate und lade deine Motive hoch.</p>
+        <p class="section-sub">Wählen Sie Ihre Bannerformate und laden Sie Ihre Motive hoch.</p>
 
         <div class="split-label">
           <span>Skyscraper <strong x-text="skyscraperPercent + '%'"></strong></span>
@@ -252,7 +299,7 @@
       <section class="wizard-section wizard-section--last">
         <p class="section-num">04</p>
         <h2 class="section-title">Übersicht</h2>
-        <p class="section-sub">Überprüfe deine Kampagne und starte sie.</p>
+        <p class="section-sub">Überprüfen Sie Ihre Kampagne und starten Sie sie.</p>
 
         <div class="snapshot-preview">
           <div class="snapshot-row">

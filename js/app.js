@@ -9,6 +9,11 @@ function appState() {
     selectedGrades: [],
     selectedStudyPrograms: [],
     studySearch: "",
+    cityInput: "",
+    citySearching: false,
+    customCity: null,
+    citySuggestions: [],
+    bubbleFocused: false,
     openDropdown: null, // "school" | "grade" | "study" | null
 
     map: null,
@@ -38,7 +43,7 @@ function appState() {
 
 
     get selectedCity() {
-      return this.cities.find((c) => c.id === this.selectedCityId);
+      return this.customCity || this.cities.find((c) => c.id === this.selectedCityId);
     },
 
     get usersInRadius() {
@@ -147,6 +152,69 @@ function appState() {
       return STUDY_PROGRAMS.filter((p) => p.toLowerCase().includes(q));
     },
 
+    async searchCity() {
+      const q = this.cityInput.trim();
+      if (!q) return;
+      this.citySearching = true;
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=de`
+        );
+        const data = await res.json();
+        if (data[0]) {
+          const lat = +data[0].lat, lng = +data[0].lon;
+          const name = data[0].display_name.split(',')[0].trim();
+          const density = Math.round(Math.min(150, Math.max(20, 20 + data[0].importance * 130)));
+          const fromBubble = this.bubbleFocused;
+          this.customCity = { name, lat, lng, density };
+          this.cityInput = name;
+          this.citySuggestions = [];
+          this.bubbleFocused = false;
+          if (!this.map.hasLayer(this.circle)) this.circle.addTo(this.map);
+          this.map.setView([lat, lng], 11);
+          this.circle.setLatLng([lat, lng]);
+          if (fromBubble) setTimeout(() => this.scrollToSection(0), 50);
+        }
+      } catch {}
+      this.citySearching = false;
+    },
+
+    async fetchSuggestions() {
+      const q = this.cityInput.trim();
+      if (q.length < 2) { this.citySuggestions = []; return; }
+      try {
+        const res = await fetch(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=de&bbox=5.8,47.3,15.0,55.1`
+        );
+        const data = await res.json();
+        const ok = new Set(['city', 'town', 'village', 'municipality', 'borough']);
+        this.citySuggestions = data.features
+          .filter(f => ok.has(f.properties.type))
+          .slice(0, 5)
+          .map(f => ({
+            name: f.properties.name,
+            display: [f.properties.name, f.properties.state].filter(Boolean).join(', '),
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
+            type: f.properties.type,
+          }));
+      } catch {}
+    },
+
+    selectSuggestion(s) {
+      const typeDensity = { city: 115, town: 75, village: 35, municipality: 65, borough: 95 };
+      const density = typeDensity[s.type] || 65;
+      const fromBubble = this.bubbleFocused;
+      this.customCity = { name: s.name, lat: s.lat, lng: s.lng, density };
+      this.cityInput = s.name;
+      this.citySuggestions = [];
+      this.bubbleFocused = false;
+      if (!this.map.hasLayer(this.circle)) this.circle.addTo(this.map);
+      this.map.setView([s.lat, s.lng], 11);
+      this.circle.setLatLng([s.lat, s.lng]);
+      if (fromBubble) setTimeout(() => this.scrollToSection(0), 50);
+    },
+
     // Dropdown-Toggle (immer nur eines offen)
     toggleDropdown(name) {
       this.openDropdown = this.openDropdown === name ? null : name;
@@ -189,32 +257,43 @@ function appState() {
       window.addEventListener('scroll', updateActive, { passive: true });
       updateActive();
 
-      this.map = L.map("map", { zoomControl: false }).setView(
-        [this.selectedCity.lat, this.selectedCity.lng],
-        11
-      );
+      this.map = L.map("map", { zoomControl: false }).setView([51.165, 10.451], 6);
 
       // CARTO Voyager: farbiger Stil (keine Gleise, dezente Straßen)
-      L.tileLayer("https://api.maptiler.com/maps/dataviz/{z}/{x}/{y}.png?key=3l3atsqoU80Mr2nZi4Oy", {
+      L.tileLayer("https://api.maptiler.com/maps/basic-v2/{z}/{x}/{y}.png?key=3l3atsqoU80Mr2nZi4Oy", {
         attribution: '© <a href="https://www.maptiler.com/">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         tileSize: 512,
         zoomOffset: -1,
         maxZoom: 19,
       }).addTo(this.map);
 
-      this.circle = L.circle([this.selectedCity.lat, this.selectedCity.lng], {
+      this.circle = L.circle([51.165, 10.451], {
         radius: this.radiusKm * 1000,
         color: "#2970FF",
         fillColor: "#2970FF",
         fillOpacity: 0.15,
         weight: 2,
-      }).addTo(this.map);
+      });
 
     },
 
     scrollToSection(i) {
       const sections = document.querySelectorAll('.wizard-section');
-      sections[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const target = sections[i];
+      if (!target) return;
+      const targetY = target.getBoundingClientRect().top + window.scrollY;
+      const startY = window.scrollY;
+      const distance = targetY - startY;
+      const duration = 500;
+      const ease = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      let start = null;
+      const step = (ts) => {
+        if (!start) start = ts;
+        const p = Math.min((ts - start) / duration, 1);
+        window.scrollTo(0, startY + distance * ease(p));
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
     },
 
     onCityChange() {
